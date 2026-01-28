@@ -37,6 +37,7 @@ function formatTime(totalSeconds: number): string {
 // ---------------------------------------------------------------------------
 
 const CALLOUTS_STORAGE_KEY = '@striking_wizard_callouts';
+const SETTINGS_STORAGE_KEY = '@striking_wizard_settings';
 let customIdCounter = 1000;
 
 export default function SetupScreen() {
@@ -89,6 +90,48 @@ export default function SetupScreen() {
       );
     }
   }, [callouts]);
+
+  // ---------------------------------------------------------------------------
+  // Load settings from storage on mount
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (stored) {
+          const settings = JSON.parse(stored);
+          setRounds(settings.rounds ?? 3);
+          setRoundDurationSecs(settings.roundDurationSecs ?? 180);
+          setRestDurationSecs(settings.restDurationSecs ?? 60);
+          setCountdownDurationSecs(settings.countdownDurationSecs ?? 10);
+          setCalloutIntervalMin(settings.calloutIntervalMin ?? 3);
+          setCalloutIntervalMax(settings.calloutIntervalMax ?? 8);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Save settings to storage whenever they change
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    const settings = {
+      rounds,
+      roundDurationSecs,
+      restDurationSecs,
+      countdownDurationSecs,
+      calloutIntervalMin,
+      calloutIntervalMax,
+    };
+    AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings)).catch(
+      (error) => console.error('Failed to save settings:', error)
+    );
+  }, [rounds, roundDurationSecs, restDurationSecs, countdownDurationSecs, calloutIntervalMin, calloutIntervalMax]);
 
   // ---------------------------------------------------------------------------
   // Stepper helpers

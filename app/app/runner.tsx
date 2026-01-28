@@ -119,6 +119,8 @@ export default function RunnerScreen() {
       <Text size="xl" className="text-text mb-3">
         {isFinished
           ? 'Session Complete'
+          : isRest
+          ? `Rest ${currentRound} of ${config.rounds}`
           : `Round ${currentRound} of ${config.rounds}`}
       </Text>
 

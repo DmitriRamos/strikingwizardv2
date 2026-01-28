@@ -117,7 +117,7 @@ export function useRoundTimer(
             // Countdown ended — start work phase.
             setPhase('work');
             setLastCallout('');
-            speak('Go');
+            speak('Fight!');
             return cfg.roundDurationSecs;
           }
 
@@ -148,7 +148,7 @@ export function useRoundTimer(
           } else {
             setPhase('work');
             setLastCallout('');
-            speak(`Round ${nextRound}`);
+            speak('Fight!');
             return cfg.roundDurationSecs;
           }
         }
@@ -176,26 +176,23 @@ export function useRoundTimer(
   }, [phase, secondsLeft, isRunning, config.countdownDurationSecs, speak]);
 
   // ---------------------------------------------------------------------------
-  // Round announcement — speak round number when work phase starts
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    if (phase === 'work' && isRunning) {
-      // Speak the round number at the start of work phase
-      if (secondsLeft === config.roundDurationSecs) {
-        speak(`Round ${currentRound}`);
-      }
-    }
-  }, [phase, secondsLeft, isRunning, config.roundDurationSecs, currentRound, speak]);
-
-  // ---------------------------------------------------------------------------
   // Callout scheduling — start/stop based on phase
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (phase === 'work' && isRunning && enabledCallouts.length > 0) {
-      // Schedule callouts during work phase
-      scheduleCallout();
+      // Wait 1 second after "Fight!" then start callouts
+      const initialDelay = setTimeout(() => {
+        scheduleCallout();
+      }, 1000);
+
+      return () => {
+        clearTimeout(initialDelay);
+        if (calloutTimeoutRef.current) {
+          clearTimeout(calloutTimeoutRef.current);
+          calloutTimeoutRef.current = null;
+        }
+      };
     }
 
     return () => {

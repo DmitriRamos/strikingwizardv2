@@ -1,18 +1,18 @@
+import '../global.css';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GluestackUIProvider } from '@/components/ui';
 
 export default function RootLayout() {
   return (
-    <>
+    <GluestackUIProvider mode="dark">
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#1a1a2e' },
-          headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: 'bold' },
-          contentStyle: { backgroundColor: '#1a1a2e' },
+          headerShown: false,
+          contentStyle: { backgroundColor: '#171717' },
         }}
       />
-    </>
+    </GluestackUIProvider>
   );
 }

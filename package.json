@@ -1,0 +1,26 @@
+{
+  "name": "striking-wizard-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "pnpm -C app start",
+    "ios": "pnpm -C app ios",
+    "android": "pnpm -C app android",
+    "lint": "pnpm -C app lint",
+    "lint:fix": "pnpm -C app lint:fix",
+    "format": "pnpm -C app format",
+    "format:check": "pnpm -C app format:check",
+    "typecheck": "pnpm -C app typecheck",
+    "test": "pnpm -C app test",
+    "test:watch": "pnpm -C app test:watch"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
+  "pnpm": {
+    "overrides": {
+      "react-test-renderer": "19.1.0"
+    }
+  }
+}

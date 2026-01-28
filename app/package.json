@@ -28,6 +28,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@gluestack-ui/nativewind-utils": "^1.0.28",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "expo": "~54.0.32",
     "expo-av": "^16.0.8",
     "expo-constants": "^18.0.13",

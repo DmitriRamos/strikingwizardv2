@@ -1,17 +1,17 @@
 import type { Callout } from '../types/session';
 
 let nextId = 1;
-const c = (label: string): Callout => ({
+const c = (label: string, enabled = false): Callout => ({
   id: String(nextId++),
   label,
-  enabled: true,
+  enabled,
 });
 
 /** Single techniques — standard numbered boxing system. */
 const singles: Callout[] = [
-  c('Jab'),
-  c('Cross'),
-  c('Lead Hook'),
+  c('Jab', true),
+  c('Cross', true),
+  c('Lead Hook', true),
   c('Rear Hook'),
   c('Lead Uppercut'),
   c('Rear Uppercut'),

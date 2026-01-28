@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_CALLOUTS } from '../src/data/defaultCallouts';
 import type { Callout } from '../src/types/session';
 import {
@@ -35,6 +36,7 @@ function formatTime(totalSeconds: number): string {
 // Setup Screen
 // ---------------------------------------------------------------------------
 
+const CALLOUTS_STORAGE_KEY = '@striking_wizard_callouts';
 let customIdCounter = 1000;
 
 export default function SetupScreen() {
@@ -51,10 +53,42 @@ export default function SetupScreen() {
   const [calloutIntervalMax, setCalloutIntervalMax] = useState(8);
 
   // Callout list
-  const [callouts, setCallouts] = useState<Callout[]>(() =>
-    DEFAULT_CALLOUTS.map((c) => ({ ...c }))
-  );
+  const [callouts, setCallouts] = useState<Callout[]>([]);
   const [customText, setCustomText] = useState('');
+
+  // ---------------------------------------------------------------------------
+  // Load callouts from storage on mount
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    const loadCallouts = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(CALLOUTS_STORAGE_KEY);
+        if (stored) {
+          setCallouts(JSON.parse(stored));
+        } else {
+          // First time - use defaults (first 3 enabled)
+          setCallouts(DEFAULT_CALLOUTS.map((c) => ({ ...c })));
+        }
+      } catch (error) {
+        console.error('Failed to load callouts:', error);
+        setCallouts(DEFAULT_CALLOUTS.map((c) => ({ ...c })));
+      }
+    };
+    loadCallouts();
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Save callouts to storage whenever they change
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (callouts.length > 0) {
+      AsyncStorage.setItem(CALLOUTS_STORAGE_KEY, JSON.stringify(callouts)).catch(
+        (error) => console.error('Failed to save callouts:', error)
+      );
+    }
+  }, [callouts]);
 
   // ---------------------------------------------------------------------------
   // Stepper helpers

@@ -3,7 +3,7 @@ import * as Speech from 'expo-speech';
 import type { Callout, RunnerPhase, SessionConfig } from '../types/session';
 
 export interface RoundTimerState {
-  /** Current phase: work, rest, or finished. */
+  /** Current phase: countdown, work, rest, or finished. */
   phase: RunnerPhase;
   /** 1-based current round number. */
   currentRound: number;
@@ -29,9 +29,15 @@ export interface RoundTimerControls {
 export function useRoundTimer(
   config: SessionConfig,
 ): [RoundTimerState, RoundTimerControls] {
-  const [phase, setPhase] = useState<RunnerPhase>('work');
+  const [phase, setPhase] = useState<RunnerPhase>(
+    config.countdownDurationSecs > 0 ? 'countdown' : 'work'
+  );
   const [currentRound, setCurrentRound] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(config.roundDurationSecs);
+  const [secondsLeft, setSecondsLeft] = useState(
+    config.countdownDurationSecs > 0
+      ? config.countdownDurationSecs
+      : config.roundDurationSecs
+  );
   const [lastCallout, setLastCallout] = useState('');
   const [isRunning, setIsRunning] = useState(true);
 
@@ -107,6 +113,14 @@ export function useRoundTimer(
           const round = currentRoundRef.current;
           const currentPhase = phaseRef.current;
 
+          if (currentPhase === 'countdown') {
+            // Countdown ended — start work phase.
+            setPhase('work');
+            setLastCallout('');
+            speak('Go');
+            return cfg.roundDurationSecs;
+          }
+
           if (currentPhase === 'work') {
             // End of a work phase.
             if (round >= cfg.rounds) {
@@ -123,13 +137,21 @@ export function useRoundTimer(
             return cfg.restDurationSecs;
           }
 
-          // End of rest — start next round.
+          // End of rest — start countdown (if enabled) or next round.
           const nextRound = round + 1;
           setCurrentRound(nextRound);
-          setPhase('work');
-          setLastCallout('');
-          speak(`Round ${nextRound}`);
-          return cfg.roundDurationSecs;
+
+          if (cfg.countdownDurationSecs > 0) {
+            setPhase('countdown');
+            setLastCallout('');
+            speak('Get ready');
+            return cfg.countdownDurationSecs;
+          } else {
+            setPhase('work');
+            setLastCallout('');
+            speak(`Round ${nextRound}`);
+            return cfg.roundDurationSecs;
+          }
         }
         return prev - 1;
       });
@@ -139,15 +161,41 @@ export function useRoundTimer(
   }, [isRunning, speak]);
 
   // ---------------------------------------------------------------------------
+  // Countdown TTS — speak each second during countdown
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (phase === 'countdown' && isRunning) {
+      // Speak "Get ready" at the start of countdown
+      if (secondsLeft === config.countdownDurationSecs) {
+        speak('Get ready');
+      } else if (secondsLeft > 0) {
+        // Speak the countdown number
+        speak(String(secondsLeft));
+      }
+    }
+  }, [phase, secondsLeft, isRunning, config.countdownDurationSecs, speak]);
+
+  // ---------------------------------------------------------------------------
+  // Round announcement — speak round number when work phase starts
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (phase === 'work' && isRunning) {
+      // Speak the round number at the start of work phase
+      if (secondsLeft === config.roundDurationSecs) {
+        speak(`Round ${currentRound}`);
+      }
+    }
+  }, [phase, secondsLeft, isRunning, config.roundDurationSecs, currentRound, speak]);
+
+  // ---------------------------------------------------------------------------
   // Callout scheduling — start/stop based on phase
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (phase === 'work' && isRunning && enabledCallouts.length > 0) {
-      // Speak the first round cue, then schedule callouts.
-      if (currentRound === 1 && secondsLeft === config.roundDurationSecs) {
-        speak('Round 1');
-      }
+      // Schedule callouts during work phase
       scheduleCallout();
     }
 

@@ -44,6 +44,7 @@ export default function SetupScreen() {
   const [rounds, setRounds] = useState(3);
   const [roundDurationSecs, setRoundDurationSecs] = useState(180); // 3:00
   const [restDurationSecs, setRestDurationSecs] = useState(60); // 1:00
+  const [countdownDurationSecs, setCountdownDurationSecs] = useState(10); // 0:10
 
   // Callout interval
   const [calloutIntervalMin, setCalloutIntervalMin] = useState(3);
@@ -113,6 +114,7 @@ export default function SetupScreen() {
       rounds: String(rounds),
       roundDurationSecs: String(roundDurationSecs),
       restDurationSecs: String(restDurationSecs),
+      countdownDurationSecs: String(countdownDurationSecs),
       calloutIntervalMin: String(calloutIntervalMin),
       calloutIntervalMax: String(calloutIntervalMax),
       callouts: JSON.stringify(enabledCallouts),
@@ -124,6 +126,7 @@ export default function SetupScreen() {
     rounds,
     roundDurationSecs,
     restDurationSecs,
+    countdownDurationSecs,
     calloutIntervalMin,
     calloutIntervalMax,
     router,
@@ -251,6 +254,32 @@ export default function SetupScreen() {
                 size="md"
                 className="w-12 h-12 rounded-full"
                 onPress={() => incTime(setRestDurationSecs, 600)}
+              >
+                <ButtonText className="text-xl">+</ButtonText>
+              </Button>
+            </HStack>
+          </Card>
+
+          {/* Countdown Duration */}
+          <Card>
+            <Text size="xs" className="text-text-muted uppercase tracking-wider mb-3">
+              Countdown Duration
+            </Text>
+            <HStack className="items-center justify-center" space="lg">
+              <Button
+                size="md"
+                className="w-12 h-12 rounded-full"
+                onPress={() => dec(setCountdownDurationSecs, 1)}
+              >
+                <ButtonText className="text-xl">-</ButtonText>
+              </Button>
+              <Text size="3xl" bold className="min-w-[80px] text-center">
+                {formatTime(countdownDurationSecs)}
+              </Text>
+              <Button
+                size="md"
+                className="w-12 h-12 rounded-full"
+                onPress={() => inc(setCountdownDurationSecs, 30)}
               >
                 <ButtonText className="text-xl">+</ButtonText>
               </Button>

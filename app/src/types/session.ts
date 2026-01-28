@@ -10,10 +10,11 @@ export interface SessionConfig {
   rounds: number;
   roundDurationSecs: number;
   restDurationSecs: number;
+  countdownDurationSecs: number;
   calloutIntervalMin: number;
   calloutIntervalMax: number;
   callouts: Callout[];
 }
 
 /** Phase the runner can be in. */
-export type RunnerPhase = 'work' | 'rest' | 'finished';
+export type RunnerPhase = 'countdown' | 'work' | 'rest' | 'finished';

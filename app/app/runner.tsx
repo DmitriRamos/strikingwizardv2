@@ -38,6 +38,7 @@ export default function RunnerScreen() {
     rounds: string;
     roundDurationSecs: string;
     restDurationSecs: string;
+    countdownDurationSecs: string;
     calloutIntervalMin: string;
     calloutIntervalMax: string;
     callouts: string;
@@ -47,6 +48,7 @@ export default function RunnerScreen() {
     rounds: Number(params.rounds) || 3,
     roundDurationSecs: Number(params.roundDurationSecs) || 180,
     restDurationSecs: Number(params.restDurationSecs) || 60,
+    countdownDurationSecs: Number(params.countdownDurationSecs) || 10,
     calloutIntervalMin: Number(params.calloutIntervalMin) || 3,
     calloutIntervalMax: Number(params.calloutIntervalMax) || 8,
     callouts: params.callouts
@@ -58,19 +60,24 @@ export default function RunnerScreen() {
 
   const { phase, currentRound, secondsLeft, lastCallout } = state;
 
+  const isCountdown = phase === 'countdown';
   const isWork = phase === 'work';
   const isRest = phase === 'rest';
   const isFinished = phase === 'finished';
 
   // Calculate progress for circular progress bar (fills up as time progresses)
-  const progress = isWork
+  const progress = isCountdown
+    ? (config.countdownDurationSecs - secondsLeft) / config.countdownDurationSecs
+    : isWork
     ? (config.roundDurationSecs - secondsLeft) / config.roundDurationSecs
     : isRest
     ? (config.restDurationSecs - secondsLeft) / config.restDurationSecs
     : 0;
 
-  // Determine color based on phase (green for work, red for rest)
-  const progressColor = isWork
+  // Determine color based on phase (amber for countdown, green for work, red for rest)
+  const progressColor = isCountdown
+    ? '#f59e0b' // amber-500 (get ready/warning)
+    : isWork
     ? '#22c55e' // green-500 (primary green)
     : isRest
     ? '#ef4444' // red-500
@@ -85,11 +92,13 @@ export default function RunnerScreen() {
       {/* Phase badge */}
       <Badge
         size="lg"
-        action={isWork ? 'success' : isRest ? 'error' : 'info'}
+        action={
+          isCountdown ? 'warning' : isWork ? 'success' : isRest ? 'error' : 'info'
+        }
         className="mb-4"
       >
         <BadgeText className="tracking-widest">
-          {isWork ? 'WORK' : isRest ? 'REST' : 'DONE'}
+          {isCountdown ? 'GET READY' : isWork ? 'WORK' : isRest ? 'REST' : 'DONE'}
         </BadgeText>
       </Badge>
 

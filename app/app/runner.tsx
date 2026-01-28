@@ -11,6 +11,7 @@ import {
   ButtonText,
   Badge,
   BadgeText,
+  CircularProgress,
 } from '@/components/ui';
 
 // ---------------------------------------------------------------------------
@@ -61,6 +62,20 @@ export default function RunnerScreen() {
   const isRest = phase === 'rest';
   const isFinished = phase === 'finished';
 
+  // Calculate progress for circular progress bar (fills up as time progresses)
+  const progress = isWork
+    ? (config.roundDurationSecs - secondsLeft) / config.roundDurationSecs
+    : isRest
+    ? (config.restDurationSecs - secondsLeft) / config.restDurationSecs
+    : 0;
+
+  // Determine color based on phase (green for work, red for rest)
+  const progressColor = isWork
+    ? '#22c55e' // green-500 (primary green)
+    : isRest
+    ? '#ef4444' // red-500
+    : '#60a5fa'; // blue-400
+
   // ---------------------------------------------------------------------------
   // JSX
   // ---------------------------------------------------------------------------
@@ -70,7 +85,7 @@ export default function RunnerScreen() {
       {/* Phase badge */}
       <Badge
         size="lg"
-        action={isWork ? 'error' : isRest ? 'success' : 'info'}
+        action={isWork ? 'success' : isRest ? 'error' : 'info'}
         className="mb-4"
       >
         <BadgeText className="tracking-widest">
@@ -87,18 +102,22 @@ export default function RunnerScreen() {
 
       {/* Timer */}
       {!isFinished && (
-        <Heading
-          size="5xl"
-          className={`mb-8 ${
-            isWork
-              ? 'text-red-500'
-              : isRest
-              ? 'text-primary-400'
-              : 'text-blue-400'
-          }`}
-        >
-          {formatTime(secondsLeft)}
-        </Heading>
+        <Box className="mb-8">
+          <CircularProgress
+            progress={progress}
+            size={280}
+            strokeWidth={12}
+            color={progressColor}
+            backgroundColor="#333"
+          >
+            <Heading
+              size="5xl"
+              className="text-white"
+            >
+              {formatTime(secondsLeft)}
+            </Heading>
+          </CircularProgress>
+        </Box>
       )}
 
       {/* Last callout */}

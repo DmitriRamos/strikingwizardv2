@@ -10,3 +10,4 @@ export { Input, InputField } from './input';
 export { Card } from './card';
 export { Pressable } from './pressable';
 export { Badge, BadgeText } from './badge';
+export { CircularProgress } from './circular-progress';

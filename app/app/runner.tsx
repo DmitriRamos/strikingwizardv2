@@ -65,9 +65,14 @@ export default function RunnerScreen() {
   const isRest = phase === 'rest';
   const isFinished = phase === 'finished';
 
+  // Display time: during countdown, account for the +1 "Get ready" pause
+  const displaySeconds = isCountdown && secondsLeft > config.countdownDurationSecs
+    ? config.countdownDurationSecs
+    : secondsLeft;
+
   // Calculate progress for circular progress bar (fills up as time progresses)
   const progress = isCountdown
-    ? (config.countdownDurationSecs - secondsLeft) / config.countdownDurationSecs
+    ? Math.max(0, (config.countdownDurationSecs + 1 - secondsLeft) / (config.countdownDurationSecs + 1))
     : isWork
     ? (config.roundDurationSecs - secondsLeft) / config.roundDurationSecs
     : isRest
@@ -123,7 +128,7 @@ export default function RunnerScreen() {
               size="5xl"
               className="text-white"
             >
-              {formatTime(secondsLeft)}
+              {formatTime(displaySeconds)}
             </Heading>
           </CircularProgress>
         </Box>

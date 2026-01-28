@@ -35,7 +35,7 @@ export function useRoundTimer(
   const [currentRound, setCurrentRound] = useState(1);
   const [secondsLeft, setSecondsLeft] = useState(
     config.countdownDurationSecs > 0
-      ? config.countdownDurationSecs + 1 // +1 for "Get ready" pause
+      ? config.countdownDurationSecs + 2 // +1 for "Get ready", +1 for pause
       : config.roundDurationSecs
   );
   const [lastCallout, setLastCallout] = useState('');
@@ -144,7 +144,7 @@ export function useRoundTimer(
           if (cfg.countdownDurationSecs > 0) {
             setPhase('countdown');
             setLastCallout('');
-            return cfg.countdownDurationSecs + 1; // +1 for "Get ready" pause
+            return cfg.countdownDurationSecs + 2; // +1 for "Get ready", +1 for pause
           } else {
             setPhase('work');
             setLastCallout('');
@@ -166,13 +166,11 @@ export function useRoundTimer(
   useEffect(() => {
     if (phase === 'countdown' && isRunning) {
       // Speak "Get ready" at the start of countdown
-      if (secondsLeft === config.countdownDurationSecs + 1) {
+      if (secondsLeft === config.countdownDurationSecs + 2) {
         speak('Get ready');
       } else if (secondsLeft > 0 && secondsLeft <= config.countdownDurationSecs) {
-        // Skip the pause second (countdownDurationSecs), then speak countdown numbers
-        if (secondsLeft < config.countdownDurationSecs) {
-          speak(String(secondsLeft));
-        }
+        // After "Get ready" and pause, speak countdown numbers (10, 9, 8, ..., 1)
+        speak(String(secondsLeft));
       }
     }
   }, [phase, secondsLeft, isRunning, config.countdownDurationSecs, speak]);

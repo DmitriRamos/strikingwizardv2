@@ -137,20 +137,13 @@ export function useRoundTimer(
             return cfg.restDurationSecs;
           }
 
-          // End of rest — start countdown (if enabled) or next round.
+          // End of rest — start next round (no countdown after first round).
           const nextRound = round + 1;
           setCurrentRound(nextRound);
-
-          if (cfg.countdownDurationSecs > 0) {
-            setPhase('countdown');
-            setLastCallout('');
-            return cfg.countdownDurationSecs + 2; // +1 for "Get ready", +1 for pause
-          } else {
-            setPhase('work');
-            setLastCallout('');
-            speak('Fight!');
-            return cfg.roundDurationSecs;
-          }
+          setPhase('work');
+          setLastCallout('');
+          speak('Fight!');
+          return cfg.roundDurationSecs;
         }
         return prev - 1;
       });
@@ -174,6 +167,19 @@ export function useRoundTimer(
       }
     }
   }, [phase, secondsLeft, isRunning, config.countdownDurationSecs, speak]);
+
+  // ---------------------------------------------------------------------------
+  // Rest countdown TTS — speak last 3 seconds during rest
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (phase === 'rest' && isRunning) {
+      // Count down the last 3 seconds of rest
+      if (secondsLeft <= 3 && secondsLeft > 0) {
+        speak(String(secondsLeft));
+      }
+    }
+  }, [phase, secondsLeft, isRunning, speak]);
 
   // ---------------------------------------------------------------------------
   // Callout scheduling — start/stop based on phase

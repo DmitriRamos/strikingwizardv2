@@ -143,11 +143,13 @@ export default function RunnerScreen() {
       )}
 
       {/* Last callout */}
-      {isWork && lastCallout !== '' && (
-        <Box className="bg-primary-500/20 rounded-2xl py-4 px-8 mb-8">
-          <Heading size="3xl" className="text-white text-center">
-            {lastCallout}
-          </Heading>
+      {!isFinished && (
+        <Box className={`rounded-2xl py-4 px-8 mb-8 min-h-[80px] flex items-center justify-center ${isWork && lastCallout ? 'bg-primary-500/20' : ''}`}>
+          {isWork && lastCallout && (
+            <Heading size="3xl" className="text-white text-center">
+              {lastCallout}
+            </Heading>
+          )}
         </Box>
       )}
 

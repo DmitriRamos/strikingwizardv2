@@ -169,8 +169,8 @@ export function useRoundTimer(
       // Speak "Get ready" at the start of countdown
       if (secondsLeft === config.countdownDurationSecs) {
         speak('Get ready');
-      } else if (secondsLeft > 0) {
-        // Speak the countdown number
+      } else if (secondsLeft > 0 && secondsLeft < config.countdownDurationSecs - 1) {
+        // Wait one second after "Get ready", then speak countdown numbers
         speak(String(secondsLeft));
       }
     }

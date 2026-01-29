@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Speech from 'expo-speech';
-import type { Callout, RunnerPhase, SessionConfig } from '../types/session';
+import type { Callout, RunnerPhase, SessionConfig, CountInPhase } from '../types/session';
+import { useMetronome } from './useMetronome';
 
 export interface RoundTimerState {
   /** Current phase: work, rest, or finished. */
   phase: RunnerPhase;
+  /** Count-in phase: idle, counting, or done. */
+  countInPhase: CountInPhase;
   /** 1-based current round number. */
   currentRound: number;
   /** Seconds remaining in the current phase. */
@@ -13,39 +16,100 @@ export interface RoundTimerState {
   lastCallout: string;
   /** Whether the session is actively running (not paused / not finished). */
   isRunning: boolean;
+  /** Whether the session is paused. */
+  isPaused: boolean;
+  /** Metronome state */
+  metronome: {
+    isPlaying: boolean;
+    bpm: number;
+    beatCount: number;
+    isCountingIn: boolean;
+    countInRemaining: number;
+  };
 }
 
 export interface RoundTimerControls {
+  /** Start the session (with count-in if enabled). */
+  start: () => void;
   /** Stop the session early. */
   stop: () => void;
+  /** Pause the session. */
+  pause: () => void;
+  /** Resume the session. */
+  resume: () => void;
+  /** Update metronome BPM mid-session. */
+  setMetronomeBpm: (bpm: number) => void;
+  /** Duck metronome volume (called when callout plays). */
+  duckMetronome: () => void;
 }
 
 /**
  * Core hook that drives the Callout Runner session.
  *
- * Manages the countdown timer, round/rest transitions, and
- * semi-random callout scheduling via text-to-speech.
+ * Manages the countdown timer, round/rest transitions,
+ * semi-random callout scheduling via text-to-speech,
+ * and metronome integration.
  */
 export function useRoundTimer(
   config: SessionConfig,
 ): [RoundTimerState, RoundTimerControls] {
+  // ---------------------------------------------------------------------------
+  // Timer state
+  // ---------------------------------------------------------------------------
+
   const [phase, setPhase] = useState<RunnerPhase>('work');
+  const [countInPhase, setCountInPhase] = useState<CountInPhase>('idle');
   const [currentRound, setCurrentRound] = useState(1);
   const [secondsLeft, setSecondsLeft] = useState(config.roundDurationSecs);
   const [lastCallout, setLastCallout] = useState('');
-  const [isRunning, setIsRunning] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Refs to avoid stale closures in intervals/timeouts.
+  // ---------------------------------------------------------------------------
+  // Metronome hook
+  // ---------------------------------------------------------------------------
+
+  const [metronomeState, metronomeControls] = useMetronome(config.metronome);
+
+  // ---------------------------------------------------------------------------
+  // Refs to avoid stale closures in intervals/timeouts
+  // ---------------------------------------------------------------------------
+
   const phaseRef = useRef(phase);
   const currentRoundRef = useRef(currentRound);
   const isRunningRef = useRef(isRunning);
+  const isPausedRef = useRef(isPaused);
   const calloutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configRef = useRef(config);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scheduleCalloutRef = useRef<(() => void) | null>(null);
+  const countInTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countInPhaseRef = useRef(countInPhase);
 
-  phaseRef.current = phase;
-  currentRoundRef.current = currentRound;
-  isRunningRef.current = isRunning;
-  configRef.current = config;
+  // Sync refs with state in effects to satisfy linter
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    currentRoundRef.current = currentRound;
+  }, [currentRound]);
+
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  useEffect(() => {
+    countInPhaseRef.current = countInPhase;
+  }, [countInPhase]);
+
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
 
   // ---------------------------------------------------------------------------
   // Callout helpers
@@ -62,8 +126,12 @@ export function useRoundTimer(
   );
 
   const speak = useCallback((text: string) => {
+    // Duck metronome when speaking
+    if (configRef.current.metronome.enabled) {
+      metronomeControls.duckVolume(600);
+    }
     Speech.speak(text, { rate: 1.1 });
-  }, []);
+  }, [metronomeControls]);
 
   const randomDelay = useCallback((): number => {
     const { calloutIntervalMin, calloutIntervalMax } = configRef.current;
@@ -73,33 +141,84 @@ export function useRoundTimer(
   }, []);
 
   /** Schedule the next callout after a random delay. */
-  const scheduleCallout = useCallback(() => {
-    if (calloutTimeoutRef.current) {
-      clearTimeout(calloutTimeoutRef.current);
-    }
-
-    calloutTimeoutRef.current = setTimeout(() => {
-      if (!isRunningRef.current || phaseRef.current !== 'work') return;
-
-      const callout = pickRandom(enabledCallouts);
-      if (callout) {
-        setLastCallout(callout.label);
-        speak(callout.label);
+  // Using useEffect to set up the ref-based scheduling to avoid self-reference issues
+  useEffect(() => {
+    scheduleCalloutRef.current = () => {
+      if (calloutTimeoutRef.current) {
+        clearTimeout(calloutTimeoutRef.current);
       }
 
-      // Schedule the next one.
-      scheduleCallout();
-    }, randomDelay());
+      calloutTimeoutRef.current = setTimeout(() => {
+        if (!isRunningRef.current || isPausedRef.current || phaseRef.current !== 'work') return;
+
+        const callout = pickRandom(enabledCallouts);
+        if (callout) {
+          setLastCallout(callout.label);
+          speak(callout.label);
+        }
+
+        // Schedule the next one using ref
+        scheduleCalloutRef.current?.();
+      }, randomDelay());
+    };
   }, [enabledCallouts, pickRandom, randomDelay, speak]);
 
+  const scheduleCallout = useCallback(() => {
+    scheduleCalloutRef.current?.();
+  }, []);
+
   // ---------------------------------------------------------------------------
-  // Countdown timer
+  // Clear scheduled callout
+  // ---------------------------------------------------------------------------
+
+  const clearCalloutTimeout = useCallback(() => {
+    if (calloutTimeoutRef.current) {
+      clearTimeout(calloutTimeoutRef.current);
+      calloutTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearCountInTimeout = useCallback(() => {
+    if (countInTimeoutRef.current) {
+      clearTimeout(countInTimeoutRef.current);
+      countInTimeoutRef.current = null;
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Start the round timer (called after count-in completes)
+  // ---------------------------------------------------------------------------
+
+  const startRoundTimer = useCallback(() => {
+    clearCountInTimeout();
+    setPhase('work');
+    setCountInPhase('done');
+    setCurrentRound(1);
+    setSecondsLeft(configRef.current.roundDurationSecs);
+    setLastCallout('');
+    setIsRunning(true);
+    setIsPaused(false);
+
+    // Speak round 1
+    speak('Round 1');
+  }, [speak]);
+
+  // ---------------------------------------------------------------------------
+  // Countdown timer effect
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning || isPaused) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
 
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
+      if (isPausedRef.current) return;
+
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           // Phase ended — figure out what's next.
@@ -113,6 +232,7 @@ export function useRoundTimer(
               // Last round — session complete.
               setPhase('finished');
               setIsRunning(false);
+              metronomeControls.stop();
               speak('Time. Session complete.');
               return 0;
             }
@@ -120,6 +240,12 @@ export function useRoundTimer(
             setPhase('rest');
             setLastCallout('');
             speak('Rest');
+
+            // Handle metronome during rest
+            if (!cfg.metronome.playDuringRest && cfg.metronome.enabled) {
+              metronomeControls.pause();
+            }
+
             return cfg.restDurationSecs;
           }
 
@@ -129,37 +255,39 @@ export function useRoundTimer(
           setPhase('work');
           setLastCallout('');
           speak(`Round ${nextRound}`);
+
+          // Resume metronome if it was paused during rest
+          if (!cfg.metronome.playDuringRest && cfg.metronome.enabled) {
+            metronomeControls.resume();
+          }
+
           return cfg.roundDurationSecs;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [isRunning, speak]);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isRunning, isPaused, speak, metronomeControls]);
 
   // ---------------------------------------------------------------------------
   // Callout scheduling — start/stop based on phase
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (phase === 'work' && isRunning && enabledCallouts.length > 0) {
-      // Speak the first round cue, then schedule callouts.
-      if (currentRound === 1 && secondsLeft === config.roundDurationSecs) {
-        speak('Round 1');
-      }
+    if (phase === 'work' && isRunning && !isPaused && enabledCallouts.length > 0) {
       scheduleCallout();
     }
 
     return () => {
-      if (calloutTimeoutRef.current) {
-        clearTimeout(calloutTimeoutRef.current);
-        calloutTimeoutRef.current = null;
-      }
+      clearCalloutTimeout();
     };
-    // Re-run when phase or running state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, isRunning]);
+  }, [phase, isRunning, isPaused, enabledCallouts.length, scheduleCallout, clearCalloutTimeout]);
 
   // ---------------------------------------------------------------------------
   // Cleanup on unmount
@@ -167,27 +295,135 @@ export function useRoundTimer(
 
   useEffect(() => {
     return () => {
-      if (calloutTimeoutRef.current) clearTimeout(calloutTimeoutRef.current);
+      clearCalloutTimeout();
+      clearCountInTimeout();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
       Speech.stop();
+      metronomeControls.stop();
     };
-  }, []);
+  }, [clearCalloutTimeout, clearCountInTimeout, metronomeControls]);
 
   // ---------------------------------------------------------------------------
   // Controls
   // ---------------------------------------------------------------------------
 
+  const start = useCallback(() => {
+    const cfg = configRef.current;
+
+    if (cfg.metronome.enabled && cfg.metronome.countInEnabled) {
+      // Start with count-in
+      setCountInPhase('counting');
+      const beatMs = 60000 / Math.max(1, cfg.metronome.bpm);
+      const expectedMs = cfg.metronome.countInBeats * beatMs + 1000;
+      clearCountInTimeout();
+      countInTimeoutRef.current = setTimeout(() => {
+        if (countInPhaseRef.current === 'counting' && !isRunningRef.current) {
+          startRoundTimer();
+        }
+      }, expectedMs);
+
+      try {
+        metronomeControls.startCountInThenPlay(() => {
+          // This callback is called when count-in completes
+          startRoundTimer();
+        });
+      } catch (error) {
+        console.error('[useRoundTimer] Metronome count-in failed:', error);
+        startRoundTimer();
+      }
+    } else if (cfg.metronome.enabled) {
+      // Metronome enabled but no count-in
+      try {
+        metronomeControls.start();
+      } catch (error) {
+        console.error('[useRoundTimer] Metronome start failed:', error);
+      }
+      startRoundTimer();
+    } else {
+      // No metronome
+      startRoundTimer();
+    }
+  }, [metronomeControls, startRoundTimer]);
+
   const stop = useCallback(() => {
     setIsRunning(false);
+    setIsPaused(false);
     setPhase('finished');
+    setCountInPhase('idle');
     Speech.stop();
-    if (calloutTimeoutRef.current) {
-      clearTimeout(calloutTimeoutRef.current);
-      calloutTimeoutRef.current = null;
+    clearCountInTimeout();
+    clearCalloutTimeout();
+    metronomeControls.stop();
+  }, [clearCountInTimeout, clearCalloutTimeout, metronomeControls]);
+
+  const pause = useCallback(() => {
+    if (!isRunning || isPaused) return;
+
+    setIsPaused(true);
+    clearCalloutTimeout();
+    Speech.stop();
+    metronomeControls.pause();
+  }, [isRunning, isPaused, clearCalloutTimeout, metronomeControls]);
+
+  const resume = useCallback(() => {
+    if (!isRunning || !isPaused) return;
+
+    setIsPaused(false);
+
+    // Resume metronome (if it should be playing in current phase)
+    const cfg = configRef.current;
+    const currentPhase = phaseRef.current;
+    const shouldMetronomePlay = cfg.metronome.enabled &&
+      (currentPhase === 'work' || cfg.metronome.playDuringRest);
+
+    if (shouldMetronomePlay) {
+      metronomeControls.resume();
     }
-  }, []);
+
+    // Reschedule callouts if in work phase
+    if (currentPhase === 'work' && enabledCallouts.length > 0) {
+      scheduleCallout();
+    }
+  }, [isRunning, isPaused, enabledCallouts.length, scheduleCallout, metronomeControls]);
+
+  const setMetronomeBpm = useCallback((bpm: number) => {
+    metronomeControls.setBpm(bpm);
+  }, [metronomeControls]);
+
+  const duckMetronome = useCallback(() => {
+    metronomeControls.duckVolume();
+  }, [metronomeControls]);
+
+  // ---------------------------------------------------------------------------
+  // Return
+  // ---------------------------------------------------------------------------
 
   return [
-    { phase, currentRound, secondsLeft, lastCallout, isRunning },
-    { stop },
+    {
+      phase,
+      countInPhase,
+      currentRound,
+      secondsLeft,
+      lastCallout,
+      isRunning,
+      isPaused,
+      metronome: {
+        isPlaying: metronomeState.isPlaying,
+        bpm: metronomeState.bpm,
+        beatCount: metronomeState.beatCount,
+        isCountingIn: metronomeState.isCountingIn,
+        countInRemaining: metronomeState.countInRemaining,
+      },
+    },
+    {
+      start,
+      stop,
+      pause,
+      resume,
+      setMetronomeBpm,
+      duckMetronome,
+    },
   ];
 }

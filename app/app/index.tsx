@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { FlatList } from 'react-native';
+import { FlatList, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DEFAULT_CALLOUTS } from '../src/data/defaultCallouts';
-import type { Callout } from '../src/types/session';
+import type { Callout, MetronomeConfig, MetronomeSoundId } from '../src/types/session';
+import { DEFAULT_METRONOME_CONFIG } from '../src/types/session';
 import {
-  Box,
   VStack,
   HStack,
   Text,
@@ -32,6 +32,15 @@ function formatTime(totalSeconds: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const METRONOME_SOUNDS: { id: MetronomeSoundId; label: string }[] = [
+  { id: 'click', label: 'Click' },
+  { id: 'woodblock', label: 'Woodblock' },
+];
+
+// ---------------------------------------------------------------------------
 // Setup Screen
 // ---------------------------------------------------------------------------
 
@@ -51,9 +60,14 @@ export default function SetupScreen() {
 
   // Callout list
   const [callouts, setCallouts] = useState<Callout[]>(() =>
-    DEFAULT_CALLOUTS.map((c) => ({ ...c }))
+    DEFAULT_CALLOUTS.map((c) => ({ ...c, enabled: false }))
   );
   const [customText, setCustomText] = useState('');
+
+  // Metronome configuration
+  const [metronome, setMetronome] = useState<MetronomeConfig>(() => ({
+    ...DEFAULT_METRONOME_CONFIG,
+  }));
 
   // ---------------------------------------------------------------------------
   // Stepper helpers
@@ -78,6 +92,45 @@ export default function SetupScreen() {
     min: number,
     step = 15
   ) => setter((v) => Math.max(v - step, min));
+
+  // ---------------------------------------------------------------------------
+  // Metronome helpers
+  // ---------------------------------------------------------------------------
+
+  const updateMetronome = useCallback(
+    <K extends keyof MetronomeConfig>(key: K, value: MetronomeConfig[K]) => {
+      setMetronome((prev) => ({ ...prev, [key]: value }));
+    },
+    []
+  );
+
+  const incBpm = useCallback(() => {
+    setMetronome((prev) => ({
+      ...prev,
+      bpm: Math.min(prev.bpm + 5, 220),
+    }));
+  }, []);
+
+  const decBpm = useCallback(() => {
+    setMetronome((prev) => ({
+      ...prev,
+      bpm: Math.max(prev.bpm - 5, 40),
+    }));
+  }, []);
+
+  const incVolume = useCallback(() => {
+    setMetronome((prev) => ({
+      ...prev,
+      volume: Math.min(prev.volume + 0.1, 1.0),
+    }));
+  }, []);
+
+  const decVolume = useCallback(() => {
+    setMetronome((prev) => ({
+      ...prev,
+      volume: Math.max(prev.volume - 0.1, 0.0),
+    }));
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Callout toggling & custom entry
@@ -107,7 +160,6 @@ export default function SetupScreen() {
 
   const handleStart = useCallback(() => {
     const enabledCallouts = callouts.filter((c) => c.enabled);
-    if (enabledCallouts.length === 0) return;
 
     const params = {
       rounds: String(rounds),
@@ -116,6 +168,7 @@ export default function SetupScreen() {
       calloutIntervalMin: String(calloutIntervalMin),
       calloutIntervalMax: String(calloutIntervalMax),
       callouts: JSON.stringify(enabledCallouts),
+      metronome: JSON.stringify(metronome),
     };
 
     router.push({ pathname: '/runner', params });
@@ -126,6 +179,7 @@ export default function SetupScreen() {
     restDurationSecs,
     calloutIntervalMin,
     calloutIntervalMax,
+    metronome,
     router,
   ]);
 
@@ -322,6 +376,137 @@ export default function SetupScreen() {
             </HStack>
           </Card>
 
+          {/* Metronome Settings */}
+          <Card>
+            <HStack className="items-center justify-between mb-3">
+              <Text size="xs" className="text-text-muted uppercase tracking-wider">
+                Metronome
+              </Text>
+              <Switch
+                value={metronome.enabled}
+                onValueChange={(value) => updateMetronome('enabled', value)}
+                trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
+                thumbColor={metronome.enabled ? '#ffffff' : '#f4f3f4'}
+              />
+            </HStack>
+
+            {metronome.enabled && (
+              <VStack space="md">
+                {/* BPM */}
+                <VStack>
+                  <Text size="xs" className="text-text-muted mb-2">
+                    BPM
+                  </Text>
+                  <HStack className="items-center justify-center" space="md">
+                    <Button
+                      size="sm"
+                      className="w-10 h-10 rounded-full"
+                      onPress={decBpm}
+                    >
+                      <ButtonText>-</ButtonText>
+                    </Button>
+                    <Text size="2xl" bold className="min-w-[60px] text-center">
+                      {metronome.bpm}
+                    </Text>
+                    <Button
+                      size="sm"
+                      className="w-10 h-10 rounded-full"
+                      onPress={incBpm}
+                    >
+                      <ButtonText>+</ButtonText>
+                    </Button>
+                  </HStack>
+                </VStack>
+
+                {/* Sound Picker */}
+                <VStack>
+                  <Text size="xs" className="text-text-muted mb-2">
+                    Sound
+                  </Text>
+                  <HStack space="sm" className="justify-center">
+                    {METRONOME_SOUNDS.map((sound) => (
+                      <Pressable
+                        key={sound.id}
+                        className={`py-2 px-4 rounded-lg border ${
+                          metronome.soundId === sound.id
+                            ? 'border-primary-500 bg-primary-500/20'
+                            : 'border-neutral-700 bg-surface'
+                        }`}
+                        onPress={() => updateMetronome('soundId', sound.id)}
+                      >
+                        <Text
+                          size="sm"
+                          className={
+                            metronome.soundId === sound.id
+                              ? 'text-text font-semibold'
+                              : 'text-text-muted'
+                          }
+                        >
+                          {sound.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </HStack>
+                </VStack>
+
+                {/* Volume */}
+                <VStack>
+                  <Text size="xs" className="text-text-muted mb-2">
+                    Volume
+                  </Text>
+                  <HStack className="items-center justify-center" space="md">
+                    <Button
+                      size="sm"
+                      className="w-10 h-10 rounded-full"
+                      onPress={decVolume}
+                    >
+                      <ButtonText>-</ButtonText>
+                    </Button>
+                    <Text size="xl" bold className="min-w-[60px] text-center">
+                      {Math.round(metronome.volume * 100)}%
+                    </Text>
+                    <Button
+                      size="sm"
+                      className="w-10 h-10 rounded-full"
+                      onPress={incVolume}
+                    >
+                      <ButtonText>+</ButtonText>
+                    </Button>
+                  </HStack>
+                </VStack>
+
+                {/* Toggles row */}
+                <HStack className="justify-around mt-2">
+                  {/* Count-in Toggle */}
+                  <VStack className="items-center">
+                    <Text size="xs" className="text-text-muted mb-2">
+                      Count-in
+                    </Text>
+                    <Switch
+                      value={metronome.countInEnabled}
+                      onValueChange={(value) => updateMetronome('countInEnabled', value)}
+                      trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
+                      thumbColor={metronome.countInEnabled ? '#ffffff' : '#f4f3f4'}
+                    />
+                  </VStack>
+
+                  {/* Play During Rest Toggle */}
+                  <VStack className="items-center">
+                    <Text size="xs" className="text-text-muted mb-2">
+                      During Rest
+                    </Text>
+                    <Switch
+                      value={metronome.playDuringRest}
+                      onValueChange={(value) => updateMetronome('playDuringRest', value)}
+                      trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
+                      thumbColor={metronome.playDuringRest ? '#ffffff' : '#f4f3f4'}
+                    />
+                  </VStack>
+                </HStack>
+              </VStack>
+            )}
+          </Card>
+
           {/* Callouts header */}
           <Text size="md" className="font-semibold mt-2">
             Callouts ({enabledCount} selected)
@@ -350,7 +535,6 @@ export default function SetupScreen() {
           <Button
             size="lg"
             className="w-full"
-            isDisabled={enabledCount === 0}
             onPress={handleStart}
           >
             <ButtonText className="text-lg">Start Session</ButtonText>

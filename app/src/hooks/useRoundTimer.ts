@@ -237,6 +237,12 @@ export function useRoundTimer(
             setPhase('work');
             setLastCallout('');
             speak('Fight!');
+
+            // Start metronome when work phase begins
+            if (cfg.metronome.enabled) {
+              metronomeControls.start();
+            }
+
             return cfg.roundDurationSecs;
           }
 
@@ -366,40 +372,35 @@ export function useRoundTimer(
   const start = useCallback(() => {
     const cfg = configRef.current;
 
-    if (cfg.metronome.enabled && cfg.metronome.countInEnabled) {
-      // Start with count-in
-      setCountInPhase('counting');
-      const beatMs = 60000 / Math.max(1, cfg.metronome.bpm);
-      const expectedMs = cfg.metronome.countInBeats * beatMs + 1000;
-      clearCountInTimeout();
-      countInTimeoutRef.current = setTimeout(() => {
-        if (countInPhaseRef.current === 'counting' && !isRunningRef.current) {
-          startRoundTimer();
-        }
-      }, expectedMs);
-
-      try {
-        metronomeControls.startCountInThenPlay(() => {
-          // This callback is called when count-in completes
-          startRoundTimer();
-        });
-      } catch (error) {
-        console.error('[useRoundTimer] Metronome count-in failed:', error);
-        startRoundTimer();
-      }
-    } else if (cfg.metronome.enabled) {
-      // Metronome enabled but no count-in
-      try {
-        metronomeControls.start();
-      } catch (error) {
-        console.error('[useRoundTimer] Metronome start failed:', error);
-      }
-      startRoundTimer();
+    // Use the main countdown if configured
+    if (cfg.countdownDurationSecs > 0) {
+      // Start with countdown phase
+      setPhase('countdown');
+      setSecondsLeft(cfg.countdownDurationSecs + 2); // +1 for "Get ready", +1 for pause
+      setIsRunning(true);
+      setIsPaused(false);
+      setCountInPhase('done');
     } else {
-      // No metronome
-      startRoundTimer();
+      // No countdown - start work phase immediately
+      setPhase('work');
+      setCurrentRound(1);
+      setSecondsLeft(cfg.roundDurationSecs);
+      setLastCallout('');
+      setIsRunning(true);
+      setIsPaused(false);
+      setCountInPhase('done');
+      speak('Round 1');
+
+      // Start metronome if enabled
+      if (cfg.metronome.enabled) {
+        try {
+          metronomeControls.start();
+        } catch (error) {
+          console.error('[useRoundTimer] Metronome start failed:', error);
+        }
+      }
     }
-  }, [metronomeControls, startRoundTimer]);
+  }, [metronomeControls, speak]);
 
   const stop = useCallback(() => {
     setIsRunning(false);

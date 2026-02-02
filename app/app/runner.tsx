@@ -114,7 +114,7 @@ export default function RunnerScreen() {
     rounds: Number(params.rounds) || 3,
     roundDurationSecs: Number(params.roundDurationSecs) || 180,
     restDurationSecs: Number(params.restDurationSecs) || 60,
-    countdownDurationSecs: Number(params.countdownDurationSecs) || 10,
+    countdownDurationSecs: params.countdownDurationSecs !== undefined ? Number(params.countdownDurationSecs) : 10,
     calloutIntervalMin: Number(params.calloutIntervalMin) || 3,
     calloutIntervalMax: Number(params.calloutIntervalMax) || 8,
     callouts,
@@ -136,8 +136,6 @@ export default function RunnerScreen() {
   const isWork = phase === 'work';
   const isRest = phase === 'rest';
   const isFinished = phase === 'finished';
-  // Use metronome's own state for count-in to avoid timing mismatches
-  const isCountingIn = metronome.isCountingIn && metronome.countInRemaining > 0;
 
   // Auto-start on mount
   const hasAutoStartedRef = useRef(false);
@@ -190,108 +188,86 @@ export default function RunnerScreen() {
 
   return (
     <Center className="flex-1 bg-background p-6">
-      {/* Count-in display */}
-      {isCountingIn ? (
-        <VStack className="items-center">
-          <Text size="lg" className="text-text-muted mb-2">
-            Get Ready
-          </Text>
-          <Heading size="5xl" className="text-yellow-400 mb-4">
-            {metronome.countInRemaining}
-          </Heading>
-          <MetronomeIndicator
-            isPlaying={metronome.isPlaying}
-            bpm={metronome.bpm}
-            beatCount={metronome.beatCount}
-            isCountingIn={true}
-            countInRemaining={metronome.countInRemaining}
-          />
-        </VStack>
-      ) : (
-        /* Main timer display - always show when not counting in */
-        <>
-          {/* Metronome indicator */}
-          {config.metronome.enabled && metronome.isPlaying && (
-            <MetronomeIndicator
-              isPlaying={metronome.isPlaying}
-              bpm={metronome.bpm}
-              beatCount={metronome.beatCount}
-              isCountingIn={false}
-              countInRemaining={0}
-            />
-          )}
+      {/* Metronome indicator */}
+      {config.metronome.enabled && metronome.isPlaying && (
+        <MetronomeIndicator
+          isPlaying={metronome.isPlaying}
+          bpm={metronome.bpm}
+          beatCount={metronome.beatCount}
+          isCountingIn={false}
+          countInRemaining={0}
+        />
+      )}
 
-          {/* Phase badge */}
-          <Badge
-            size="lg"
-            action={
-              isCountdown ? 'warning' : isWork ? 'success' : isRest ? 'error' : 'info'
-            }
-            className="mb-4"
+      {/* Phase badge */}
+      <Badge
+        size="lg"
+        action={
+          isCountdown ? 'warning' : isWork ? 'success' : isRest ? 'error' : 'info'
+        }
+        className="mb-4"
+      >
+        <BadgeText className="tracking-widest">
+          {isCountdown ? 'GET READY' : isWork ? 'WORK' : isRest ? 'REST' : 'DONE'}
+        </BadgeText>
+      </Badge>
+
+      {/* Round indicator */}
+      <Text size="xl" className="text-text mb-3">
+        {isFinished
+          ? 'Session Complete'
+          : isRest
+          ? `Rest ${currentRound} of ${config.rounds}`
+          : `Round ${currentRound} of ${config.rounds}`}
+      </Text>
+
+      {/* Timer */}
+      {!isFinished && (
+        <Box className="mb-8">
+          <CircularProgress
+            progress={progress}
+            size={280}
+            strokeWidth={12}
+            color={progressColor}
+            backgroundColor="#333"
           >
-            <BadgeText className="tracking-widest">
-              {isCountdown ? 'GET READY' : isWork ? 'WORK' : isRest ? 'REST' : 'DONE'}
-            </BadgeText>
-          </Badge>
+            <Heading
+              size="5xl"
+              className="text-white"
+            >
+              {formatTime(displaySeconds)}
+            </Heading>
+          </CircularProgress>
+        </Box>
+      )}
 
-          {/* Round indicator */}
-          <Text size="xl" className="text-text mb-3">
-            {isFinished
-              ? 'Session Complete'
-              : isRest
-              ? `Rest ${currentRound} of ${config.rounds}`
-              : `Round ${currentRound} of ${config.rounds}`}
+      {/* Paused indicator */}
+      {isPaused && !isFinished && (
+        <Box className="bg-yellow-500/20 rounded-xl py-2 px-6 mb-4">
+          <Text size="lg" className="text-yellow-400 font-semibold">
+            PAUSED
           </Text>
+        </Box>
+      )}
 
-          {/* Timer */}
-          {!isFinished && (
-            <Box className="mb-8">
-              <CircularProgress
-                progress={progress}
-                size={280}
-                strokeWidth={12}
-                color={progressColor}
-                backgroundColor="#333"
-              >
-                <Heading
-                  size="5xl"
-                  className="text-white"
-                >
-                  {formatTime(displaySeconds)}
-                </Heading>
-              </CircularProgress>
-            </Box>
+      {/* Last callout */}
+      {!isFinished && (
+        <Box className={`rounded-2xl py-4 px-8 mb-8 min-h-[80px] flex items-center justify-center ${isWork && lastCallout ? 'bg-primary-500/20' : ''}`}>
+          {isWork && lastCallout && (
+            <Heading size="3xl" className="text-white text-center">
+              {lastCallout}
+            </Heading>
           )}
+        </Box>
+      )}
 
-          {/* Paused indicator */}
-          {isPaused && !isFinished && (
-            <Box className="bg-yellow-500/20 rounded-xl py-2 px-6 mb-4">
-              <Text size="lg" className="text-yellow-400 font-semibold">
-                PAUSED
-              </Text>
-            </Box>
-          )}
-
-          {/* Last callout */}
-          {!isFinished && (
-            <Box className={`rounded-2xl py-4 px-8 mb-8 min-h-[80px] flex items-center justify-center ${isWork && lastCallout ? 'bg-primary-500/20' : ''}`}>
-              {isWork && lastCallout && (
-                <Heading size="3xl" className="text-white text-center">
-                  {lastCallout}
-                </Heading>
-              )}
-            </Box>
-          )}
-
-          {/* Finished summary */}
-          {isFinished && (
-            <VStack className="mb-10 items-center">
-              <Text size="xl" className="text-text text-center">
-                {currentRound} round{currentRound > 1 ? 's' : ''} completed
-              </Text>
-            </VStack>
-          )}
-        </>
+      {/* Finished summary */}
+      {isFinished && (
+        <VStack className="mb-10 items-center">
+          <Text size="xl" className="text-text text-center">
+            {currentRound} round{currentRound > 1 ? 's' : ''} completed
+          </Text>
+        </VStack>
       )}
 
       {/* Actions */}
@@ -304,15 +280,6 @@ export default function RunnerScreen() {
             onPress={() => router.replace('/')}
           >
             <ButtonText className="text-lg">Back to Setup</ButtonText>
-          </Button>
-        ) : isCountingIn ? (
-          <Button
-            size="lg"
-            action="negative"
-            className="w-full bg-red-600"
-            onPress={() => controls.stop()}
-          >
-            <ButtonText className="text-lg">Cancel</ButtonText>
           </Button>
         ) : (
           <HStack space="md">

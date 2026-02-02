@@ -56,6 +56,7 @@ export default function SetupScreen() {
   const [rounds, setRounds] = useState(3);
   const [roundDurationSecs, setRoundDurationSecs] = useState(180); // 3:00
   const [restDurationSecs, setRestDurationSecs] = useState(60); // 1:00
+  const [countdownEnabled, setCountdownEnabled] = useState(true);
   const [countdownDurationSecs, setCountdownDurationSecs] = useState(10); // 0:10
 
   // Callout interval
@@ -118,6 +119,7 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
           setRounds(settings.rounds ?? 3);
           setRoundDurationSecs(settings.roundDurationSecs ?? 180);
           setRestDurationSecs(settings.restDurationSecs ?? 60);
+          setCountdownEnabled(settings.countdownEnabled ?? true);
           setCountdownDurationSecs(settings.countdownDurationSecs ?? 10);
           setCalloutIntervalMin(settings.calloutIntervalMin ?? 3);
           setCalloutIntervalMax(settings.calloutIntervalMax ?? 8);
@@ -138,6 +140,7 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
       rounds,
       roundDurationSecs,
       restDurationSecs,
+      countdownEnabled,
       countdownDurationSecs,
       calloutIntervalMin,
       calloutIntervalMax,
@@ -145,7 +148,7 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
     AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings)).catch(
       (error) => console.error('Failed to save settings:', error)
     );
-  }, [rounds, roundDurationSecs, restDurationSecs, countdownDurationSecs, calloutIntervalMin, calloutIntervalMax]);
+  }, [rounds, roundDurationSecs, restDurationSecs, countdownEnabled, countdownDurationSecs, calloutIntervalMin, calloutIntervalMax]);
 
   // ---------------------------------------------------------------------------
   // Stepper helpers
@@ -243,7 +246,7 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
       rounds: String(rounds),
       roundDurationSecs: String(roundDurationSecs),
       restDurationSecs: String(restDurationSecs),
-      countdownDurationSecs: String(countdownDurationSecs),
+      countdownDurationSecs: String(countdownEnabled ? countdownDurationSecs : 0),
       calloutIntervalMin: String(calloutIntervalMin),
       calloutIntervalMax: String(calloutIntervalMax),
       callouts: JSON.stringify(enabledCallouts),
@@ -256,6 +259,7 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
     rounds,
     roundDurationSecs,
     restDurationSecs,
+    countdownEnabled,
     countdownDurationSecs,
     calloutIntervalMin,
     calloutIntervalMax,
@@ -393,28 +397,38 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
 
           {/* Countdown Duration */}
           <Card>
-            <Text size="xs" className="text-text-muted uppercase tracking-wider mb-3">
-              Countdown Duration
-            </Text>
-            <HStack className="items-center justify-center" space="lg">
-              <Button
-                size="md"
-                className="w-12 h-12 rounded-full"
-                onPress={() => dec(setCountdownDurationSecs, 1)}
-              >
-                <ButtonText className="text-xl">-</ButtonText>
-              </Button>
-              <Text size="3xl" bold className="min-w-[80px] text-center">
-                {formatTime(countdownDurationSecs)}
+            <HStack className="items-center justify-between mb-3">
+              <Text size="xs" className="text-text-muted uppercase tracking-wider">
+                Countdown
               </Text>
-              <Button
-                size="md"
-                className="w-12 h-12 rounded-full"
-                onPress={() => inc(setCountdownDurationSecs, 30)}
-              >
-                <ButtonText className="text-xl">+</ButtonText>
-              </Button>
+              <Switch
+                value={countdownEnabled}
+                onValueChange={setCountdownEnabled}
+                trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
+                thumbColor={countdownEnabled ? '#ffffff' : '#f4f3f4'}
+              />
             </HStack>
+            {countdownEnabled && (
+              <HStack className="items-center justify-center" space="lg">
+                <Button
+                  size="md"
+                  className="w-12 h-12 rounded-full"
+                  onPress={() => dec(setCountdownDurationSecs, 1)}
+                >
+                  <ButtonText className="text-xl">-</ButtonText>
+                </Button>
+                <Text size="3xl" bold className="min-w-[80px] text-center">
+                  {formatTime(countdownDurationSecs)}
+                </Text>
+                <Button
+                  size="md"
+                  className="w-12 h-12 rounded-full"
+                  onPress={() => inc(setCountdownDurationSecs, 30)}
+                >
+                  <ButtonText className="text-xl">+</ButtonText>
+                </Button>
+              </HStack>
+            )}
           </Card>
 
           {/* Callout Interval */}
@@ -581,33 +595,17 @@ const [callouts, setCallouts] = useState<Callout[]>([]);
                   </HStack>
                 </VStack>
 
-                {/* Toggles row */}
-                <HStack className="justify-around mt-2">
-                  {/* Count-in Toggle */}
-                  <VStack className="items-center">
-                    <Text size="xs" className="text-text-muted mb-2">
-                      Count-in
-                    </Text>
-                    <Switch
-                      value={metronome.countInEnabled}
-                      onValueChange={(value) => updateMetronome('countInEnabled', value)}
-                      trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
-                      thumbColor={metronome.countInEnabled ? '#ffffff' : '#f4f3f4'}
-                    />
-                  </VStack>
-
-                  {/* Play During Rest Toggle */}
-                  <VStack className="items-center">
-                    <Text size="xs" className="text-text-muted mb-2">
-                      During Rest
-                    </Text>
-                    <Switch
-                      value={metronome.playDuringRest}
-                      onValueChange={(value) => updateMetronome('playDuringRest', value)}
-                      trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
-                      thumbColor={metronome.playDuringRest ? '#ffffff' : '#f4f3f4'}
-                    />
-                  </VStack>
+                {/* Play During Rest Toggle */}
+                <HStack className="items-center justify-between mt-2">
+                  <Text size="xs" className="text-text-muted">
+                    Play During Rest
+                  </Text>
+                  <Switch
+                    value={metronome.playDuringRest}
+                    onValueChange={(value) => updateMetronome('playDuringRest', value)}
+                    trackColor={{ false: '#3e3e3e', true: '#57b17b' }}
+                    thumbColor={metronome.playDuringRest ? '#ffffff' : '#f4f3f4'}
+                  />
                 </HStack>
               </VStack>
             )}

@@ -32,7 +32,7 @@ export const DEFAULT_METRONOME_CONFIG: MetronomeConfig = {
   bpm: 120,
   soundId: 'click',
   volume: 0.6,
-  countInEnabled: true,
+  countInEnabled: false,
   countInBeats: 4,
   playDuringRest: false,
 };
